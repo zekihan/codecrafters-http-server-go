@@ -18,8 +18,23 @@ func main() {
 		fmt.Println("Failed to bind to port 4221")
 		os.Exit(1)
 	}
+	defer l.Close()
 
-	_, err = l.Accept()
+	for {
+		conn, err := l.Accept()
+		if err != nil {
+			fmt.Println("Error accepting connection: ", err.Error())
+			os.Exit(1)
+		}
+		go handleRequest(conn)
+	}
+
+}
+
+func handleRequest(conn net.Conn) {
+	defer conn.Close()
+	const okContent = "HTTP/1.1 200 OK\r\n\r\n"
+	_, err := conn.Write([]byte(okContent))
 	if err != nil {
 		fmt.Println("Error accepting connection: ", err.Error())
 		os.Exit(1)
