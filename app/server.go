@@ -9,17 +9,13 @@ import (
 )
 
 const crlf = "\r\n"
-
-const (
-	okContent       = "HTTP/1.1 200 OK\r\n\r\n"
-	notFoundContent = "HTTP/1.1 404 Not Found\r\n\r\n"
-)
+const lf = "\n"
 
 func main() {
 	// You can use print statements as follows for debugging, they'll be visible when running tests.
 	fmt.Println("Logs from your program will appear here!")
 
-	l, err := net.Listen("tcp", "0.0.0.0:4221")
+	l, err := net.Listen("tcp", "127.0.0.1:4221")
 	if err != nil {
 		fmt.Println("Failed to bind to port 4221")
 		os.Exit(1)
@@ -44,10 +40,8 @@ func handleRequest(conn net.Conn) {
 	if err != nil {
 		return
 	}
-	s := string(read)
-	split := strings.Split(s, crlf)
-	startLine := strings.Split(split[0], " ")
-	path := startLine[1]
+	parseHttpResponse := parseHttp(string(read))
+	path := parseHttpResponse.Path
 
 	content := response(http.StatusNotFound)
 	if path == "/" {
@@ -55,12 +49,41 @@ func handleRequest(conn net.Conn) {
 	} else if strings.HasPrefix(path, "/echo/") {
 		params := strings.TrimPrefix(path, "/echo/")
 		content = responseWithBody(http.StatusOK, params)
+	} else if strings.HasPrefix(path, "/user-agent") {
+		userAgent := parseHttpResponse.Headers["User-Agent"]
+		content = responseWithBody(http.StatusOK, userAgent)
 	}
 
 	_, err = conn.Write([]byte(content))
 	if err != nil {
 		fmt.Println("Error accepting connection: ", err.Error())
 		os.Exit(1)
+	}
+}
+
+type ParseHttpResponse struct {
+	Headers map[string]string
+	Path    string
+	Method  string
+}
+
+func parseHttp(s string) ParseHttpResponse {
+	split := strings.Split(s, crlf)
+	startLine := strings.Split(split[0], " ")
+	method := startLine[0]
+	path := startLine[1]
+	headers := make(map[string]string)
+	for i := 1; i < len(split); i++ {
+		if split[i] == "" {
+			break
+		}
+		header := strings.Split(split[i], ": ")
+		headers[header[0]] = header[1]
+	}
+	return ParseHttpResponse{
+		Headers: headers,
+		Path:    path,
+		Method:  method,
 	}
 }
 
