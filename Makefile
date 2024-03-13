@@ -53,7 +53,7 @@ run: build
 .PHONY: run/live
 run/live:
 	go run github.com/cosmtrek/air@v1.41.0 \
-		--build.cmd "make build" --build.bin "${TMP_DIR}/bin/${BINARY_NAME}" --build.delay "100" \
+		--build.cmd "make build" --build.bin "${TMP_DIR}/bin/${BINARY_NAME} --directory test" --build.delay "100" \
 		--build.exclude_dir "" \
 		--build.include_ext "go, jsonc" \
 		--misc.clean_on_exit "true"

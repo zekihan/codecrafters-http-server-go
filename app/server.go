@@ -45,12 +45,13 @@ func main() {
 
 func handleRequest(conn net.Conn) {
 	defer conn.Close()
-	read := make([]byte, 1024)
-	_, err := conn.Read(read)
+	buffer := make([]byte, 1024)
+	n, err := conn.Read(buffer)
 	if err != nil {
 		return
 	}
-	parseHttpResponse := parseHttp(string(read))
+	request := string(buffer[:n])
+	parseHttpResponse := parseHttp(request)
 	urlPath := parseHttpResponse.Path
 
 	content := response(http.StatusNotFound)
@@ -65,15 +66,22 @@ func handleRequest(conn net.Conn) {
 	} else if strings.HasPrefix(urlPath, "/files/") {
 		filePath := strings.TrimPrefix(urlPath, "/files/")
 		localFilePath := path.Join(dir, filePath)
-		// Check if file exists
-		if stat, err := os.Stat(localFilePath); os.IsNotExist(err) || stat.IsDir() {
-			content = response(http.StatusNotFound)
-		} else {
-			file, err := os.ReadFile(localFilePath)
-			if err != nil {
-				content = response(http.StatusInternalServerError)
+		if parseHttpResponse.Method == "GET" {
+			if stat, err := os.Stat(localFilePath); os.IsNotExist(err) || stat.IsDir() {
+				content = response(http.StatusNotFound)
+			} else {
+				file, err := os.ReadFile(localFilePath)
+				if err != nil {
+					content = responseWithBody(http.StatusInternalServerError, err.Error())
+				}
+				content = responseWithFile(http.StatusOK, string(file))
 			}
-			content = responseWithFile(http.StatusOK, string(file))
+		} else if parseHttpResponse.Method == "POST" {
+			err := os.WriteFile(localFilePath, []byte(parseHttpResponse.Body), 0644)
+			if err != nil {
+				content = responseWithBody(http.StatusInternalServerError, err.Error())
+			}
+			content = response(http.StatusCreated)
 		}
 	}
 
@@ -88,6 +96,7 @@ type ParseHttpResponse struct {
 	Headers map[string]string
 	Path    string
 	Method  string
+	Body    string
 }
 
 func parseHttp(s string) ParseHttpResponse {
@@ -102,6 +111,15 @@ func parseHttp(s string) ParseHttpResponse {
 		}
 		header := strings.Split(split[i], ": ")
 		headers[header[0]] = header[1]
+	}
+	if method == "POST" {
+		body := split[len(split)-1]
+		return ParseHttpResponse{
+			Headers: headers,
+			Path:    urlPath,
+			Method:  method,
+			Body:    body,
+		}
 	}
 	return ParseHttpResponse{
 		Headers: headers,
