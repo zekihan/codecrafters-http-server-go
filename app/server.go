@@ -3,12 +3,12 @@ package main
 import (
 	"fmt"
 	"net"
+	"net/http"
 	"os"
 	"strings"
-	// Uncomment this block to pass the first stage
-	// "net"
-	// "os"
 )
+
+const crlf = "\r\n"
 
 const (
 	okContent       = "HTTP/1.1 200 OK\r\n\r\n"
@@ -45,13 +45,16 @@ func handleRequest(conn net.Conn) {
 		return
 	}
 	s := string(read)
-	split := strings.Split(s, "\r\n")
+	split := strings.Split(s, crlf)
 	startLine := strings.Split(split[0], " ")
 	path := startLine[1]
 
-	content := notFoundContent
+	content := response(http.StatusNotFound)
 	if path == "/" {
-		content = okContent
+		content = response(http.StatusOK)
+	} else if strings.HasPrefix(path, "/echo/") {
+		params := strings.TrimPrefix(path, "/echo/")
+		content = responseWithBody(http.StatusOK, params)
 	}
 
 	_, err = conn.Write([]byte(content))
@@ -59,4 +62,20 @@ func handleRequest(conn net.Conn) {
 		fmt.Println("Error accepting connection: ", err.Error())
 		os.Exit(1)
 	}
+}
+
+func response(status int) string {
+	return responseWithBody(status, "")
+}
+
+func responseWithBody(status int, body string) string {
+	res := fmt.Sprintf("HTTP/1.1 %d %s", status, http.StatusText(status))
+	res += crlf
+	res += "Content-Type: text/plain"
+	res += crlf
+	res += "Content-Length: " + fmt.Sprint(len(body))
+	res += crlf
+	res += crlf
+	res += body
+	return res
 }
