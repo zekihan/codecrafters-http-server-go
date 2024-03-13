@@ -4,9 +4,15 @@ import (
 	"fmt"
 	"net"
 	"os"
+	"strings"
 	// Uncomment this block to pass the first stage
 	// "net"
 	// "os"
+)
+
+const (
+	okContent       = "HTTP/1.1 200 OK\r\n\r\n"
+	notFoundContent = "HTTP/1.1 404 Not Found\r\n\r\n"
 )
 
 func main() {
@@ -33,8 +39,22 @@ func main() {
 
 func handleRequest(conn net.Conn) {
 	defer conn.Close()
-	const okContent = "HTTP/1.1 200 OK\r\n\r\n"
-	_, err := conn.Write([]byte(okContent))
+	read := make([]byte, 1024)
+	_, err := conn.Read(read)
+	if err != nil {
+		return
+	}
+	s := string(read)
+	split := strings.Split(s, "\r\n")
+	startLine := strings.Split(split[0], " ")
+	path := startLine[1]
+
+	content := notFoundContent
+	if path == "/" {
+		content = okContent
+	}
+
+	_, err = conn.Write([]byte(content))
 	if err != nil {
 		fmt.Println("Error accepting connection: ", err.Error())
 		os.Exit(1)
